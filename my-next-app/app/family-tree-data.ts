@@ -137,15 +137,7 @@ export const agentMembers: AgentMember[] = [
       provider: "OpenAI",
       purpose: "Coding assistance",
     },
-    mcps: [
-      {
-        id: "coder-files-mcp",
-        name: "Filesystem MCP",
-        server: "mcp://filesystem",
-        connected: true,
-        scope: "Project file access and edits",
-      },
-    ],
+    mcps: [],
     connectors: [
       {
         id: "coder-git",
@@ -170,12 +162,7 @@ export const agentMembers: AgentMember[] = [
       "Spot layout or runtime issues",
       "Confirm task completion",
     ],
-    llm: {
-      connected: true,
-      model: "gpt-5.1-mini",
-      provider: "OpenAI",
-      purpose: "Validation summaries",
-    },
+    llm: null,
     mcps: [
       {
         id: "tester-diagnostics-mcp",
@@ -185,22 +172,14 @@ export const agentMembers: AgentMember[] = [
         scope: "Health checks and logs",
       },
     ],
-    connectors: [
-      {
-        id: "tester-ci",
-        name: "CI Connector",
-        platform: "GitHub Actions",
-        connected: true,
-        purpose: "Reads workflow status",
-      },
-    ],
+    connectors: [],
   },
   {
     id: "ops",
     name: "Mira Ops",
     kind: "subagent",
     role: "Sub-Agent",
-    model: "GPT-5.1",
+    model: "GPT-5.2",
     specialty: "Environment and MCP operations",
     status: "Standby",
     summary: "Maintains tools and runtime operations.",
@@ -211,7 +190,7 @@ export const agentMembers: AgentMember[] = [
     ],
     llm: {
       connected: true,
-      model: "gpt-5.1",
+      model: "gpt-5.2",
       provider: "OpenAI",
       purpose: "Operations support",
     },
@@ -229,14 +208,6 @@ export const agentMembers: AgentMember[] = [
         },
       },
     ],
-    connectors: [
-      {
-        id: "ops-deploy",
-        name: "Deploy Connector",
-        platform: "Cloud Run",
-        connected: true,
-        purpose: "Deployment and rollout status",
-      },
-    ],
+    connectors: [],
   },
 ];
