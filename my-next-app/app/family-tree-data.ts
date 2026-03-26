@@ -1,95 +1,232 @@
+export type ConnectorBinding = {
+  id: string;
+  name: string;
+  platform: string;
+  connected: boolean;
+  purpose: string;
+};
+
+export type McpBinding = {
+  id: string;
+  name: string;
+  server: string;
+  connected: boolean;
+  scope: string;
+};
+
+export type LlmBinding = {
+  connected: boolean;
+  model: string;
+  provider: string;
+  purpose: string;
+};
+
 export type AgentMember = {
   id: string;
   name: string;
+  kind: "chatops" | "supervisor" | "subagent";
   role: string;
   model: string;
   specialty: string;
-  mcpTools: string[];
   status: string;
   summary: string;
   responsibilities: string[];
+  llm: LlmBinding | null;
+  mcps: McpBinding[];
+  connectors: ConnectorBinding[];
 };
 
 export const agentMembers: AgentMember[] = [
   {
+    id: "chatops",
+    name: "Pulse ChatOps",
+    kind: "chatops",
+    role: "ChatOps Gateway",
+    model: "Event Router",
+    specialty: "Routes incoming chat commands",
+    status: "Online",
+    summary: "Entry point for chat-driven operations.",
+    responsibilities: [
+      "Capture chat commands from users",
+      "Normalize request context and metadata",
+      "Send approved tasks to the supervisor agent",
+    ],
+    llm: null,
+    mcps: [],
+    connectors: [],
+  },
+  {
     id: "supervisor",
     name: "Orion Supervisor",
+    kind: "supervisor",
     role: "Supervisor Agent",
     model: "GPT-5.1",
-    specialty: "Task routing, policy checks, and orchestration",
-    mcpTools: ["Calendar MCP", "Docs MCP", "Tickets MCP"],
+    specialty: "Orchestrates the sub-agents",
     status: "Active",
-    summary:
-      "Receives the user request, breaks it into workstreams, delegates to sub-agents, and merges the final answer.",
+    summary: "Breaks work into tasks and delegates execution.",
     responsibilities: [
       "Clarify intent and constraints",
       "Assign work to specialized sub-agents",
       "Review outputs before responding",
     ],
+    llm: null,
+    mcps: [],
+    connectors: [],
   },
   {
     id: "researcher",
     name: "Nova Researcher",
+    kind: "subagent",
     role: "Sub-Agent",
     model: "GPT-5.1-mini",
-    specialty: "Search, extraction, and source checking",
-    mcpTools: ["Web Search MCP", "Docs MCP"],
+    specialty: "Search and evidence gathering",
     status: "Active",
-    summary:
-      "Collects facts, checks references, and prepares concise evidence for the supervisor.",
+    summary: "Collects facts and supporting evidence.",
     responsibilities: [
       "Find relevant facts and sources",
       "Summarize supporting evidence",
       "Flag uncertainty or missing context",
     ],
+    llm: {
+      connected: true,
+      model: "gpt-5.1-mini",
+      provider: "OpenAI",
+      purpose: "Research and synthesis",
+    },
+    mcps: [
+      {
+        id: "researcher-web-mcp",
+        name: "Web Search MCP",
+        server: "mcp://web-search",
+        connected: true,
+        scope: "Live web and document discovery",
+      },
+    ],
+    connectors: [
+      {
+        id: "researcher-jira",
+        name: "Jira Connector",
+        platform: "Jira",
+        connected: true,
+        purpose: "Reads ticket context",
+      },
+    ],
   },
   {
     id: "coder",
     name: "Atlas Coder",
+    kind: "subagent",
     role: "Sub-Agent",
     model: "GPT-5.1-codex",
-    specialty: "Implementation and refactoring",
-    mcpTools: ["Git MCP", "Filesystem MCP"],
+    specialty: "Code changes and refactoring",
     status: "Active",
-    summary:
-      "Implements code changes, edits files, and keeps changes aligned with the task scope.",
+    summary: "Edits source code and prepares changes.",
     responsibilities: [
       "Patch source files",
       "Preserve existing conventions",
       "Report changed file list",
     ],
+    llm: {
+      connected: true,
+      model: "gpt-5.1-codex",
+      provider: "OpenAI",
+      purpose: "Coding assistance",
+    },
+    mcps: [
+      {
+        id: "coder-files-mcp",
+        name: "Filesystem MCP",
+        server: "mcp://filesystem",
+        connected: true,
+        scope: "Project file access and edits",
+      },
+    ],
+    connectors: [
+      {
+        id: "coder-git",
+        name: "Git Connector",
+        platform: "Git",
+        connected: true,
+        purpose: "Reads repository history",
+      },
+    ],
   },
   {
     id: "tester",
     name: "Helix Tester",
+    kind: "subagent",
     role: "Sub-Agent",
     model: "GPT-5.1-mini",
-    specialty: "Verification and regression checks",
-    mcpTools: ["Test Runner MCP", "Diagnostics MCP"],
+    specialty: "Checks behavior and regressions",
     status: "Active",
-    summary:
-      "Runs lightweight validation, looks for regressions, and reports confidence levels.",
+    summary: "Validates behavior and flags regressions.",
     responsibilities: [
       "Check UI behavior",
       "Spot layout or runtime issues",
       "Confirm task completion",
     ],
+    llm: {
+      connected: true,
+      model: "gpt-5.1-mini",
+      provider: "OpenAI",
+      purpose: "Validation summaries",
+    },
+    mcps: [
+      {
+        id: "tester-diagnostics-mcp",
+        name: "Diagnostics MCP",
+        server: "mcp://diagnostics",
+        connected: true,
+        scope: "Health checks and logs",
+      },
+    ],
+    connectors: [
+      {
+        id: "tester-ci",
+        name: "CI Connector",
+        platform: "GitHub Actions",
+        connected: true,
+        purpose: "Reads workflow status",
+      },
+    ],
   },
   {
     id: "ops",
     name: "Mira Ops",
+    kind: "subagent",
     role: "Sub-Agent",
     model: "GPT-5.1",
-    specialty: "MCP integration and environment operations",
-    mcpTools: ["MCP Registry", "Secrets MCP", "Deploy MCP"],
+    specialty: "Environment and MCP operations",
     status: "Standby",
-    summary:
-      "Keeps MCP tools available, manages environment assumptions, and supports operational tasks.",
+    summary: "Maintains tools and runtime operations.",
     responsibilities: [
       "Maintain tool availability",
       "Coordinate environment access",
       "Assist with deployment steps",
     ],
+    llm: {
+      connected: true,
+      model: "gpt-5.1",
+      provider: "OpenAI",
+      purpose: "Operations support",
+    },
+    mcps: [
+      {
+        id: "ops-registry-mcp",
+        name: "MCP Registry",
+        server: "mcp://registry",
+        connected: true,
+        scope: "Tool discovery and registration",
+      },
+    ],
+    connectors: [
+      {
+        id: "ops-deploy",
+        name: "Deploy Connector",
+        platform: "Cloud Run",
+        connected: true,
+        purpose: "Deployment and rollout status",
+      },
+    ],
   },
 ];
-
