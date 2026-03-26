@@ -122,7 +122,7 @@ export const agentMembers: AgentMember[] = [
     name: "Atlas Coder",
     kind: "subagent",
     role: "Sub-Agent",
-    model: "GPT-5.1-codex",
+    model: "GPT-5.1",
     specialty: "Code changes and refactoring",
     status: "Active",
     summary: "Edits source code and prepares changes.",
@@ -133,7 +133,7 @@ export const agentMembers: AgentMember[] = [
     ],
     llm: {
       connected: true,
-      model: "gpt-5.1-codex",
+      model: "gpt-5.1",
       provider: "OpenAI",
       purpose: "Coding assistance",
     },
