@@ -12,6 +12,11 @@ export type McpBinding = {
   server: string;
   connected: boolean;
   scope: string;
+  targetApp?: {
+    id: string;
+    name: string;
+    summary: string;
+  };
 };
 
 export type LlmBinding = {
@@ -217,6 +222,11 @@ export const agentMembers: AgentMember[] = [
         server: "mcp://registry",
         connected: true,
         scope: "Tool discovery and registration",
+        targetApp: {
+          id: "sharepoint",
+          name: "SharePoint",
+          summary: "Publishes operational documents and runbooks.",
+        },
       },
     ],
     connectors: [

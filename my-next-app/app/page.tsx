@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   addEdge,
   Background,
@@ -18,8 +18,9 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import { agentMembers, type AgentMember } from "./family-tree-data";
+import sharePointLogo from "../img/SharePoint-Symbol.png";
 
-type GraphKind = "chatops" | "supervisor" | "subagent" | "connector" | "mcp" | "llm";
+type GraphKind = "chatops" | "supervisor" | "subagent" | "connector" | "mcp" | "llm" | "endpoint";
 
 type GraphNodeData = {
   id: string;
@@ -31,6 +32,7 @@ type GraphNodeData = {
   tags: string[];
   detailItems: Array<{ label: string; value: string }>;
   responsibilities: string[];
+  imageSrc?: typeof sharePointLogo;
 };
 
 const primaryPositions: Record<string, { x: number; y: number }> = {
@@ -87,7 +89,9 @@ function createGraph(members: AgentMember[]) {
       continue;
     }
 
-    if (shouldAttachResource("connector")) {
+    const selection = pickResourceSelection();
+
+    if (selection.connector) {
       member.connectors.forEach((connector, index) => {
         const nodeId = `${member.id}-${connector.id}`;
         nodes.push({
@@ -118,7 +122,7 @@ function createGraph(members: AgentMember[]) {
       });
     }
 
-    if (shouldAttachResource("mcp")) {
+    if (selection.mcp) {
       member.mcps.forEach((mcp, index) => {
         const nodeId = `${member.id}-${mcp.id}`;
         nodes.push({
@@ -146,10 +150,40 @@ function createGraph(members: AgentMember[]) {
           },
         });
         edges.push(linkEdge(member.id, nodeId, "#8b5cf6"));
+
+        if (mcp.targetApp) {
+          const endpointNodeId = `${nodeId}-${mcp.targetApp.id}`;
+          nodes.push({
+            id: endpointNodeId,
+            type: "resource",
+            position: {
+              x: position.x + 300 + index * 140,
+              y: position.y + 210,
+            },
+            targetPosition: Position.Left,
+            sourcePosition: Position.Right,
+            data: {
+              id: endpointNodeId,
+              kind: "endpoint",
+              name: mcp.targetApp.name,
+              role: "Connected app",
+              status: "Available",
+              summary: mcp.targetApp.summary,
+              tags: ["SharePoint"],
+              detailItems: [
+                { label: "Type", value: "Endpoint app" },
+                { label: "Linked by", value: mcp.name },
+              ],
+              responsibilities: ["Stores runbooks and operational documents."],
+              imageSrc: sharePointLogo,
+            },
+          });
+          edges.push(linkEdge(nodeId, endpointNodeId, "#2563eb"));
+        }
       });
     }
 
-    if (member.llm?.connected && shouldAttachResource("llm")) {
+    if (member.llm?.connected && selection.llm) {
       const nodeId = `${member.id}-llm`;
       nodes.push({
         id: nodeId,
@@ -182,14 +216,12 @@ function createGraph(members: AgentMember[]) {
   return { nodes, edges };
 }
 
-function shouldAttachResource(resourceType: "connector" | "mcp" | "llm") {
-  const threshold = {
-    connector: 0.4,
-    mcp: 0.45,
-    llm: 0.35,
-  }[resourceType];
-
-  return Math.random() >= threshold;
+function pickResourceSelection() {
+  return {
+    connector: Math.random() >= 0.5,
+    mcp: Math.random() >= 0.5,
+    llm: Math.random() >= 0.5,
+  };
 }
 
 function linkEdge(source: string, target: string, stroke = "#0284c7"): Edge {
@@ -211,7 +243,8 @@ function EntityNode({ data }: NodeProps<Node<GraphNodeData>["data"]>) {
     return null;
   }
 
-  const isResource = data.kind === "connector" || data.kind === "mcp" || data.kind === "llm";
+  const isResource =
+    data.kind === "connector" || data.kind === "mcp" || data.kind === "llm" || data.kind === "endpoint";
 
   return (
     <>
@@ -228,7 +261,18 @@ function EntityNode({ data }: NodeProps<Node<GraphNodeData>["data"]>) {
         }`}
       >
         <div className="flex items-start gap-3">
-          <NodeLogo kind={data.kind} />
+          {data.kind === "endpoint" && data.imageSrc ? (
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white shadow-lg ring-1 ring-sky-200">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={data.imageSrc.src}
+                alt={`${data.name} logo`}
+                className="h-7 w-7 object-contain"
+              />
+            </div>
+          ) : (
+            <NodeLogo kind={data.kind} />
+          )}
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-[0.24em] text-sky-700">{data.role}</div>
             <div className="mt-1 text-lg font-semibold text-slate-950">{data.name}</div>
@@ -271,9 +315,14 @@ const nodeTypes = {
 
 export default function Home() {
   const [selectedNode, setSelectedNode] = useState<GraphNodeData | null>(null);
-  const initialGraph = useMemo(() => createGraph(agentMembers), []);
-  const [nodes, , onNodesChange] = useNodesState(initialGraph.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialGraph.edges);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<GraphNodeData>>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+
+  useEffect(() => {
+    const graph = createGraph(agentMembers);
+    setNodes(graph.nodes);
+    setEdges(graph.edges);
+  }, [setEdges, setNodes]);
 
   const onConnect: OnConnect = (connection) => {
     setEdges((currentEdges) =>
@@ -410,6 +459,7 @@ function NodeLogo({ kind }: { kind: GraphKind }) {
     connector: "from-orange-500 to-amber-400",
     mcp: "from-violet-500 to-fuchsia-400",
     llm: "from-cyan-500 to-blue-500",
+    endpoint: "from-blue-500 to-sky-400",
   }[kind];
 
   return (
@@ -472,6 +522,8 @@ function miniMapColor(kind?: GraphKind) {
       return "#8b5cf6";
     case "llm":
       return "#06b6d4";
+    case "endpoint":
+      return "#2563eb";
     default:
       return "#38bdf8";
   }
