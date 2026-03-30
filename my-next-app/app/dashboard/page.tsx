@@ -19,17 +19,62 @@ import {
   visualizerNodeTypes,
   type GraphNodeData,
 } from "./visualizer";
+import type { VisualizerResponse } from "../family-tree-data";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [selectedNode, setSelectedNode] = useState<GraphNodeData | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<GraphNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const graph = createVisualizerGraph();
-    setNodes(graph.nodes);
-    setEdges(graph.edges);
+    let isActive = true;
+
+    async function loadVisualizer() {
+      setIsLoading(true);
+      setErrorMessage(null);
+
+      try {
+        const response = await fetch(VISUALIZER_SOURCE_URL, {
+          headers: {
+            accept: "application/json",
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+
+        const payload = (await response.json()) as VisualizerResponse;
+        if (!isActive) {
+          return;
+        }
+
+        const graph = createVisualizerGraph(payload);
+        setNodes(graph.nodes);
+        setEdges(graph.edges);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setNodes([]);
+        setEdges([]);
+        setErrorMessage(error instanceof Error ? error.message : "Unable to load visualizer data.");
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadVisualizer();
+
+    return () => {
+      isActive = false;
+    };
   }, [setEdges, setNodes]);
 
   return (
@@ -41,8 +86,8 @@ export default function DashboardPage() {
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">Visualizer Graph</h1>
               <p className="mt-1 max-w-3xl text-sm text-slate-600">
-                Static visualization derived from the visualizer payload for
-                ` {VISUALIZER_SOURCE_URL}`.
+                Static visualization derived from the visualizer payload for{" "}
+                <span className="font-medium text-slate-800">{VISUALIZER_SOURCE_URL}</span>.
               </p>
             </div>
             <button
@@ -57,34 +102,47 @@ export default function DashboardPage() {
 
         <div className="relative flex-1">
           <div className="absolute inset-0">
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={visualizerNodeTypes}
-              fitView
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              nodesDraggable
-              nodesConnectable={false}
-              elementsSelectable
-              defaultEdgeOptions={{
-                type: "simplebezier",
-                style: {
-                  strokeWidth: 3,
-                },
-              }}
-              onNodeClick={(_, node) => setSelectedNode(node.data)}
-              proOptions={{ hideAttribution: true }}
-            >
-              <Background gap={28} color="rgba(96,165,250,0.24)" />
-              <Controls />
-              <MiniMap
-                zoomable
-                pannable
-                nodeColor={(node) => getMiniMapColor(node.data?.kind)}
-                maskColor="rgba(219, 234, 254, 0.65)"
-              />
-            </ReactFlow>
+            {isLoading ? (
+              <div className="flex h-full items-center justify-center text-slate-600">
+                Loading visualizer...
+              </div>
+            ) : errorMessage ? (
+              <div className="flex h-full items-center justify-center px-6 text-center text-slate-600">
+                <div>
+                  <p className="text-lg font-medium text-slate-900">Unable to load graph</p>
+                  <p className="mt-2 text-sm">{errorMessage}</p>
+                </div>
+              </div>
+            ) : (
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={visualizerNodeTypes}
+                fitView
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                nodesDraggable
+                nodesConnectable={false}
+                elementsSelectable
+                defaultEdgeOptions={{
+                  type: "simplebezier",
+                  style: {
+                    strokeWidth: 3,
+                  },
+                }}
+                onNodeClick={(_, node) => setSelectedNode(node.data)}
+                proOptions={{ hideAttribution: true }}
+              >
+                <Background gap={28} color="rgba(96,165,250,0.24)" />
+                <Controls />
+                <MiniMap
+                  zoomable
+                  pannable
+                  nodeColor={(node) => getMiniMapColor(node.data?.kind)}
+                  maskColor="rgba(219, 234, 254, 0.65)"
+                />
+              </ReactFlow>
+            )}
           </div>
 
           <aside
@@ -133,6 +191,18 @@ export default function DashboardPage() {
                       </ul>
                     </>
                   ) : null}
+                  {selectedNode.sections?.map((section) => (
+                    <div key={section.title} className="mt-4">
+                      <div className="text-xs uppercase tracking-[0.24em] text-sky-700">
+                        {section.title}
+                      </div>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                        {section.items.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </div>
               </div>
             ) : (

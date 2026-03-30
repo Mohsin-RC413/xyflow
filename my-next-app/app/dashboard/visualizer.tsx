@@ -6,14 +6,14 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
+import { APP_URLS } from "../config/urls";
 import {
-  visualizerResponse,
   type VisualizerAgent,
   type VisualizerConnector,
   type VisualizerMcp,
+  type VisualizerResponse,
   type VisualizerNode,
 } from "../family-tree-data";
-import { APP_URLS } from "../config/urls";
 
 export type GraphKind = "agent" | "connector" | "mcp";
 
@@ -31,16 +31,17 @@ export type GraphNodeData = {
   longText: string;
   listLabel?: string;
   listItems: string[];
+  sections?: Array<{ title: string; items: string[] }>;
 };
 
 export const VISUALIZER_SOURCE_URL = APP_URLS.visualizer;
 
-export function createVisualizerGraph() {
-  const nodeMap = new Map(visualizerResponse.nodes.map((node) => [node.id, node]));
-  const outgoing = buildOutgoingEdges();
-  const positionMap = createPositionMap(nodeMap, outgoing);
+export function createVisualizerGraph(response: VisualizerResponse) {
+  const nodeMap = new Map(response.nodes.map((node) => [node.id, node]));
+  const outgoing = buildOutgoingEdges(response);
+  const positionMap = createPositionMap(response, nodeMap, outgoing);
 
-  const nodes: Node<GraphNodeData>[] = visualizerResponse.nodes.map((node, index) => ({
+  const nodes: Node<GraphNodeData>[] = response.nodes.map((node, index) => ({
     id: node.id,
     type: "visualizer",
     position: positionMap.get(node.id) ?? fallbackPosition(index),
@@ -49,7 +50,7 @@ export function createVisualizerGraph() {
     data: buildNodeData(node),
   }));
 
-  const edges: Edge[] = visualizerResponse.edges.map((edge) => ({
+  const edges: Edge[] = response.edges.map((edge) => ({
     id: edge.id,
     source: edge.source,
     target: edge.target,
@@ -67,10 +68,10 @@ export function createVisualizerGraph() {
   return { nodes, edges };
 }
 
-function buildOutgoingEdges() {
+function buildOutgoingEdges(response: VisualizerResponse) {
   const outgoing = new Map<string, string[]>();
 
-  for (const edge of visualizerResponse.edges) {
+  for (const edge of response.edges) {
     const targets = outgoing.get(edge.source) ?? [];
     targets.push(edge.target);
     outgoing.set(edge.source, targets);
@@ -80,12 +81,13 @@ function buildOutgoingEdges() {
 }
 
 function createPositionMap(
+  response: VisualizerResponse,
   nodeMap: Map<string, VisualizerNode>,
   outgoing: Map<string, string[]>,
 ) {
   const positionMap = new Map<string, { x: number; y: number }>();
 
-  const supervisorIds = visualizerResponse.nodes
+  const supervisorIds = response.nodes
     .filter((node) => node.type === "agent" && node.data.agent.sub_agents.length > 0)
     .map((node) => node.id);
 
@@ -93,7 +95,7 @@ function createPositionMap(
     .flatMap((id) => outgoing.get(id) ?? [])
     .filter((id) => nodeMap.get(id)?.type === "agent");
 
-  const standaloneAgentIds = visualizerResponse.nodes
+  const standaloneAgentIds = response.nodes
     .filter((node) => node.type === "agent")
     .map((node) => node.id)
     .filter((id) => !supervisorIds.includes(id) && !childAgentIds.includes(id));
@@ -166,6 +168,8 @@ function buildAgentNodeData(agent: VisualizerAgent): GraphNodeData {
     hoverText: truncate(agent.instruction, 160),
     tags: [agent.model.name, `${relationships.length} links`],
     detailItems: [
+      { label: "Agent id", value: agent.agent_id },
+      { label: "Type", value: agent.type },
       { label: "Provider", value: agent.model.provider },
       { label: "Model", value: agent.model.name },
       { label: "Status", value: agent.status },
@@ -175,6 +179,24 @@ function buildAgentNodeData(agent: VisualizerAgent): GraphNodeData {
     longText: agent.instruction,
     listLabel: relationships.length > 0 ? "Relationships" : undefined,
     listItems: relationships,
+    sections: [
+      {
+        title: "Sub-agents",
+        items: agent.sub_agents,
+      },
+      {
+        title: "Connector ids",
+        items: agent.connector_config_ids,
+      },
+      {
+        title: "MCP servers",
+        items: agent.mcp_servers,
+      },
+      {
+        title: "Webhook prompts",
+        items: agent.webhooks.map((item) => item.prompt),
+      },
+    ].filter((section) => section.items.length > 0),
   };
 }
 
@@ -191,6 +213,7 @@ function buildConnectorNodeData(connector: VisualizerConnector): GraphNodeData {
     tags: [connector.connector_id, `${connector.config.length} keys`],
     detailItems: [
       { label: "Connector id", value: connector.connector_id },
+      { label: "Config id", value: connector.connector_config_id },
       { label: "Config keys", value: `${connector.config.length}` },
       { label: "Created", value: formatDate(connector.created_at) },
       { label: "Updated", value: formatDate(connector.updated_at) },
@@ -200,6 +223,12 @@ function buildConnectorNodeData(connector: VisualizerConnector): GraphNodeData {
       "Connector configuration used by the linked agent to call an external platform.",
     listLabel: "Config keys",
     listItems: connector.config.map((item) => item.name),
+    sections: [
+      {
+        title: "Config entries",
+        items: connector.config.map((item) => item.name),
+      },
+    ],
   };
 }
 
@@ -217,12 +246,19 @@ function buildMcpNodeData(mcp: VisualizerMcp): GraphNodeData {
     hoverText: mcp.url,
     tags: ["MCP", parsedUrl.hostname],
     detailItems: [
+      { label: "Name", value: mcp.name },
       { label: "URL", value: mcp.url },
       { label: "Host", value: parsedUrl.hostname },
       { label: "Protocol", value: parsedUrl.protocol.replace(":", "") },
     ],
     longText: "Model Context Protocol server linked to an agent in the visualizer response.",
     listItems: [],
+    sections: [
+      {
+        title: "Endpoint",
+        items: [mcp.url],
+      },
+    ],
   };
 }
 
